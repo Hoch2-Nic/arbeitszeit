@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arbeitszeit</title>
+<meta name="description" content="Einfache Arbeitszeiterfassung mit Urlaubsplanung">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Arbeitszeit">
+<style>
+  :root{
+    --teal:#0f766e; --teal-dark:#115e59; --teal-light:#ccfbf1;
+    --amber:#d97706; --amber-light:#fef3c7;
+    --red:#dc2626; --red-light:#fee2e2;
+    --purple:#7c3aed; --purple-light:#ede9fe;
+    --gray:#6b7280; --gray-light:#f3f4f6;
+    --text:#111827; --text-soft:#4b5563;
+    --bg:#f8fafc; --card:#ffffff; --border:#e5e7eb;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
+  html{font-size:17px}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.45;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+  }
+  header.app-header{
+    background:var(--teal); color:#fff;
+    padding:calc(14px + env(safe-area-inset-top)) 20px 14px;
+    position:sticky; top:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  header.app-header h1{font-size:1.25rem; font-weight:700}
+  .saldo-chip{background:rgba(255,255,255,.18); border-radius:99px; padding:5px 14px; font-size:.95rem; font-weight:600; white-space:nowrap}
+  main{max-width:560px; margin:0 auto; padding:16px}
+  section.tab{display:none}
+  section.tab.active{display:block}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .card h2{font-size:1.05rem; font-weight:700; margin-bottom:12px; color:var(--text)}
+  label.field{display:block; margin-bottom:14px}
+  label.field span{display:block; font-size:.9rem; font-weight:600; color:var(--text-soft); margin-bottom:5px}
+  input[type=date],input[type=time],input[type=number],input[type=text]{
+    width:100%; font-size:1.25rem; padding:12px 14px;
+    border:1.5px solid var(--border); border-radius:12px; background:#fff; color:var(--text);
+    appearance:none; -webkit-appearance:none; min-height:52px; font-family:inherit;
+  }
+  input:focus{outline:none; border-color:var(--teal)}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .type-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px}
+  .type-btn{
+    border:1.5px solid var(--border); background:#fff; border-radius:14px;
+    padding:14px 8px; font-size:1.05rem; font-weight:600; color:var(--text-soft);
+    min-height:56px; cursor:pointer; font-family:inherit;
+  }
+  .type-btn.sel-work{background:var(--teal-light); border-color:var(--teal); color:var(--teal-dark)}
+  .type-btn.sel-vacation{background:var(--amber-light); border-color:var(--amber); color:#92400e}
+  .type-btn.sel-sick{background:var(--red-light); border-color:var(--red); color:#991b1b}
+  .type-btn.sel-off{background:var(--gray-light); border-color:var(--gray); color:#374151}
+  .btn{
+    display:block; width:100%; border:none; border-radius:14px; padding:16px;
+    font-size:1.15rem; font-weight:700; cursor:pointer; min-height:56px; font-family:inherit;
+  }
+  .btn-primary{background:var(--teal); color:#fff}
+  .btn-primary:active{background:var(--teal-dark)}
+  .btn-secondary{background:#fff; color:var(--teal-dark); border:1.5px solid var(--teal)}
+  .btn-danger{background:#fff; color:var(--red); border:1.5px solid var(--red); margin-top:10px}
+  .btn + .btn{margin-top:10px}
+  .calc-line{
+    text-align:center; font-size:1.3rem; font-weight:700; color:var(--teal-dark);
+    background:var(--teal-light); border-radius:12px; padding:12px; margin:4px 0 16px;
+  }
+  .hint{font-size:.9rem; color:var(--text-soft); margin-top:8px}
+  .banner{
+    background:var(--amber-light); border:1.5px solid var(--amber); border-radius:14px;
+    padding:14px 16px; margin-bottom:14px; font-size:1rem; color:#92400e; font-weight:600;
+  }
+  .holiday-note{background:var(--purple-light); color:var(--purple); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-weight:600; font-size:.95rem}
+  /* Monat */
+  .month-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
+  .month-nav button{
+    border:1.5px solid var(--border); background:#fff; border-radius:12px;
+    width:52px; height:52px; font-size:1.5rem; color:var(--teal-dark); cursor:pointer;
+  }
+  .month-nav .month-title{font-size:1.2rem; font-weight:700}
+  .day-row{
+    display:flex; align-items:center; gap:12px; padding:11px 6px;
+    border-bottom:1px solid var(--border); cursor:pointer;
+  }
+  .day-row:last-child{border-bottom:none}
+  .day-row .d-date{width:64px; flex-shrink:0; font-weight:700; font-size:.98rem}
+  .day-row .d-date small{display:block; font-weight:500; color:var(--text-soft); font-size:.78rem}
+  .day-row .d-info{flex:1; font-size:.95rem; color:var(--text-soft); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .day-row .d-hours{font-weight:700; font-size:1rem; white-space:nowrap}
+  .day-row.today{background:var(--teal-light); border-radius:10px}
+  .day-row.dim{opacity:.45}
+  .tag{display:inline-block; border-radius:7px; padding:2px 8px; font-size:.82rem; font-weight:700}
+  .tag-work{background:var(--teal-light); color:var(--teal-dark)}
+  .tag-vacation{background:var(--amber-light); color:#92400e}
+  .tag-sick{background:var(--red-light); color:#991b1b}
+  .tag-holiday{background:var(--purple-light); color:var(--purple)}
+  .tag-off{background:var(--gray-light); color:#374151}
+  .tag-missing{background:#fff; color:var(--red); border:1.5px dashed var(--red)}
+  .sum-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .sum-box{background:var(--gray-light); border-radius:12px; padding:12px; text-align:center}
+  .sum-box .v{font-size:1.35rem; font-weight:800}
+  .sum-box .l{font-size:.82rem; color:var(--text-soft); font-weight:600}
+  .pos{color:var(--teal-dark)} .neg{color:var(--red)}
+  /* Urlaub */
+  .big-stat{text-align:center; padding:10px 0 16px}
+  .big-stat .n{font-size:3.4rem; font-weight:800; color:var(--amber); line-height:1.1}
+  .big-stat .t{font-size:1.05rem; font-weight:600; color:var(--text-soft)}
+  .vac-math{font-size:1.02rem}
+  .vac-math div{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border)}
+  .vac-math div:last-child{border-bottom:none; font-weight:800}
+  /* Nav */
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20;
+    background:#fff; border-top:1px solid var(--border);
+    display:flex; padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav.tabbar button{
+    flex:1; border:none; background:none; padding:9px 2px 7px;
+    font-size:.72rem; font-weight:600; color:var(--gray); cursor:pointer; font-family:inherit;
+  }
+  nav.tabbar button .ic{display:block; font-size:1.45rem; margin-bottom:2px}
+  nav.tabbar button.active{color:var(--teal-dark)}
+  /* Einstellungen */
+  .chip-row{display:flex; gap:7px; flex-wrap:wrap}
+  .chip{
+    border:1.5px solid var(--border); background:#fff; border-radius:99px;
+    padding:10px 0; width:44px; text-align:center; font-weight:700; font-size:.95rem;
+    color:var(--text-soft); cursor:pointer; font-family:inherit;
+  }
+  .chip.on{background:var(--teal); border-color:var(--teal); color:#fff}
+  /* Druck */
+  #print-area{display:none}
+  @media print{
+    body{padding:0; background:#fff}
+    header.app-header, main, nav.tabbar{display:none !important}
+    #print-area{display:block; font-size:11pt; color:#000}
+    #print-area h1{font-size:15pt; margin-bottom:2pt}
+    #print-area .sub{margin-bottom:10pt; font-size:10pt}
+    #print-area table{width:100%; border-collapse:collapse}
+    #print-area th,#print-area td{border:1px solid #999; padding:3pt 5pt; text-align:left; font-size:9.5pt}
+    #print-area th{background:#eee}
+    #print-area .num{text-align:right}
+    #print-area .totals{margin-top:10pt; font-size:10.5pt}
+    #print-area .sig{margin-top:36pt; display:flex; justify-content:space-between; gap:24pt}
+    #print-area .sig div{flex:1; border-top:1px solid #000; padding-top:4pt; font-size:9pt; text-align:center}
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1 id="header-title">Arbeitszeit</h1>
+  <div class="saldo-chip" id="header-saldo"></div>
+</header>
+
+<main>
+
+<!-- ============ HEUTE / EINTRAGEN ============ -->
+<section class="tab active" id="tab-heute">
+  <div class="banner" id="welcome-banner" style="display:none" onclick="showTab('einstellungen')">
+    👋 Willkommen! Bitte zuerst kurz die Einstellungen ausfüllen (Wochenstunden &amp; Urlaub). Hier tippen ›
+  </div>
+
+  <div class="card">
+    <h2>Tag eintragen</h2>
+    <label class="field"><span>Datum</span>
+      <input type="date" id="in-date">
+    </label>
+    <div class="holiday-note" id="holiday-note" style="display:none"></div>
+    <div class="type-grid">
+      <button type="button" class="type-btn" id="tb-work" onclick="setType('work')">🕐 Arbeit</button>
+      <button type="button" class="type-btn" id="tb-vacation" onclick="setType('vacation')">🌴 Urlaub</button>
+      <button type="button" class="type-btn" id="tb-sick" onclick="setType('sick')">🤒 Krank</button>
+      <button type="button" class="type-btn" id="tb-off" onclick="setType('off')">☕️ Frei / Ausgleich</button>
+    </div>
+    <div id="work-fields">
+      <div class="row2">
+        <label class="field"><span>Kommen</span><input type="time" id="in-start"></label>
+        <label class="field"><span>Gehen</span><input type="time" id="in-end"></label>
+      </div>
+      <label class="field"><span>Pause (Minuten)</span>
+        <input type="number" id="in-break" min="0" step="5" inputmode="numeric">
+      </label>
+      <div class="calc-line" id="calc-line">= 0:00 Std</div>
+    </div>
+    <button class="btn btn-primary" id="btn-save" onclick="saveEntry()">Speichern</button>
+    <button class="btn btn-danger" id="btn-delete" style="display:none" onclick="deleteEntry()">Eintrag löschen</button>
+  </div>
+
+  <div class="card">
+    <div class="sum-grid">
+      <div class="sum-box"><div class="v" id="stat-saldo">–</div><div class="l">Überstunden gesamt</div></div>
+      <div class="sum-box"><div class="v" id="stat-vac">–</div><div class="l">Resturlaub heuer</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MONAT ============ -->
+<section class="tab" id="tab-monat">
+  <div class="month-nav">
+    <button onclick="moveMonth(-1)" aria-label="Voriger Monat">‹</button>
+    <div class="month-title" id="month-title"></div>
+    <button onclick="moveMonth(1)" aria-label="Nächster Monat">›</button>
+  </div>
+  <div class="card" id="month-sums"></div>
+  <div class="card" id="month-list" style="padding:8px 12px"></div>
+</section>
+
+<!-- ============ URLAUB ============ -->
+<section class="tab" id="tab-urlaub">
+  <div class="month-nav">
+    <button onclick="moveVacYear(-1)" aria-label="Voriges Jahr">‹</button>
+    <div class="month-title" id="vac-year-title"></div>
+    <button onclick="moveVacYear(1)" aria-label="Nächstes Jahr">›</button>
+  </div>
+  <div class="card">
+    <div class="big-stat"><div class="n" id="vac-rest">–</div><div class="t">Tage Resturlaub</div></div>
+    <div class="vac-math" id="vac-math"></div>
+  </div>
+  <div class="card">
+    <h2>Eingetragene Urlaubstage</h2>
+    <div id="vac-list"></div>
+    <p class="hint">Urlaub einträgst du unter „Heute“: Datum wählen → 🌴 Urlaub → Speichern. Auch für Tage in der Zukunft (Urlaubsplanung).</p>
+  </div>
+</section>
+
+<!-- ============ EXPORT ============ -->
+<section class="tab" id="tab-export">
+  <div class="month-nav">
+    <button onclick="moveMonth(-1); renderExport()" aria-label="Voriger Monat">‹</button>
+    <div class="month-title" id="export-title"></div>
+    <button onclick="moveMonth(1); renderExport()" aria-label="Nächster Monat">›</button>
+  </div>
+  <div class="card">
+    <h2>Monatsbericht</h2>
+    <button class="btn btn-primary" onclick="printMonth()">📄 Als PDF drucken / teilen</button>
+    <button class="btn btn-secondary" onclick="downloadCSV()">📊 Excel-Datei (CSV) speichern</button>
+    <p class="hint">PDF: Im Druck-Dialog „Als PDF sichern“ oder „Teilen“ wählen.</p>
+  </div>
+  <div class="card">
+    <h2>Datensicherung</h2>
+    <button class="btn btn-secondary" onclick="exportBackup()">💾 Backup speichern</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('backup-file').click()">📥 Backup laden</button>
+    <input type="file" id="backup-file" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
+    <p class="hint">Die Daten sind nur auf diesem Handy gespeichert. Speichere ab und zu ein Backup (z.B. 1× im Monat) – dann geht bei einem Handywechsel nichts verloren.</p>
+  </div>
+</section>
+
+<!-- ============ EINSTELLUNGEN ============ -->
+<section class="tab" id="tab-einstellungen">
+  <div class="card">
+    <h2>Meine Arbeitszeit</h2>
+    <label class="field"><span>Name (steht am Monatsbericht)</span>
+      <input type="text" id="set-name" autocomplete="name">
+    </label>
+    <label class="field"><span>Wochenstunden</span>
+      <input type="number" id="set-weekly" min="1" max="60" step="0.5" inputmode="decimal">
+    </label>
+    <label class="field"><span>Arbeitstage</span>
+      <div class="chip-row" id="workday-chips"></div>
+    </label>
+    <label class="field"><span>Standard-Pause (Minuten)</span>
+      <input type="number" id="set-break" min="0" step="5" inputmode="numeric">
+    </label>
+  </div>
+  <div class="card">
+    <h2>Urlaub</h2>
+    <div class="row2">
+      <label class="field"><span>Urlaubstage pro Jahr</span>
+        <input type="number" id="set-vacdays" min="0" step="1" inputmode="numeric">
+      </label>
+      <label class="field"><span>Übertrag Vorjahr</span>
+        <input type="number" id="set-carry" step="1" inputmode="numeric">
+      </label>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Überstunden-Zählung</h2>
+    <label class="field"><span>Zählen ab (Datum)</span>
+      <input type="date" id="set-startdate">
+    </label>
+    <label class="field"><span>Anfangs-Saldo in Stunden (falls schon Überstunden bestehen)</span>
+      <input type="number" id="set-startbalance" step="0.5" inputmode="decimal">
+    </label>
+  </div>
+  <button class="btn btn-primary" onclick="saveSettings()">Einstellungen speichern</button>
+  <p class="hint" style="text-align:center; margin-top:14px">Arbeitszeit-App · Daten bleiben auf diesem Gerät</p>
+</section>
+
+</main>
+
+<nav class="tabbar">
+  <button id="nav-heute" class="active" onclick="showTab('heute')"><span class="ic">✏️</span>Eintragen</button>
+  <button id="nav-monat" onclick="showTab('monat')"><span class="ic">📅</span>Monat</button>
+  <button id="nav-urlaub" onclick="showTab('urlaub')"><span class="ic">🌴</span>Urlaub</button>
+  <button id="nav-export" onclick="showTab('export')"><span class="ic">📄</span>Bericht</button>
+  <button id="nav-einstellungen" onclick="showTab('einstellungen')"><span class="ic">⚙️</span>Mehr</button>
+</nav>
+
+<div id="print-area"></div>
+
+<script>
+'use strict';
+/* ================= Daten ================= */
+const KEY = 'arbeitszeit-v1';
+const WEEKDAYS = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+const MONTHS = ['Jänner','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const TYPE_LABEL = {work:'Arbeit', vacation:'Urlaub', sick:'Krank', holiday:'Feiertag', off:'Frei/Ausgleich'};
+
+let db = loadDB();
+let curDate = todayStr();               // im Eintragen-Tab gewähltes Datum
+let curType = 'work';
+let viewYear, viewMonth;                // Monatsansicht (Monat 0-basiert)
+let vacYear = new Date().getFullYear(); // Urlaubsansicht
+{ const t = new Date(); viewYear = t.getFullYear(); viewMonth = t.getMonth(); }
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const d = JSON.parse(raw); if(d && d.settings && d.entries) return d; }
+  }catch(e){}
+  const t = new Date();
+  return {
+    settings:{
+      name:'', weeklyHours:20, workDays:[1,2,3,4,5], defaultBreak:30,
+      vacationDays:25, carryover:0,
+      startDate: dstr(new Date(t.getFullYear(), t.getMonth(), 1)), startBalance:0,
+      configured:false
+    },
+    entries:{}
+  };
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+
+/* ================= Datum-Helfer ================= */
+function pad(n){ return String(n).padStart(2,'0'); }
+function dstr(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function fromStr(ds){ const [y,m,da] = ds.split('-').map(Number); return new Date(y, m-1, da); }
+function todayStr(){ return dstr(new Date()); }
+function toMin(t){ if(!t) return null; const [h,m] = t.split(':').map(Number); return h*60+m; }
+
+/* ================= Feiertage Österreich ================= */
+function easter(y){
+  const a=y%19, b=Math.floor(y/100), c=y%100, d=Math.floor(b/4), e=b%4,
+        f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30,
+        i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451),
+        mo=Math.floor((h+l-7*m+114)/31), da=(h+l-7*m+114)%31+1;
+  return new Date(y, mo-1, da);
+}
+const holidayCache = {};
+function holidays(y){
+  if(holidayCache[y]) return holidayCache[y];
+  const E = easter(y);
+  const plus = n => { const d = new Date(E); d.setDate(d.getDate()+n); return dstr(d); };
+  const H = {};
+  H[y+'-01-01'] = 'Neujahr';
+  H[y+'-01-06'] = 'Hl. Drei Könige';
+  H[plus(1)]    = 'Ostermontag';
+  H[y+'-05-01'] = 'Staatsfeiertag';
+  H[plus(39)]   = 'Christi Himmelfahrt';
+  H[plus(50)]   = 'Pfingstmontag';
+  H[plus(60)]   = 'Fronleichnam';
+  H[y+'-08-15'] = 'Mariä Himmelfahrt';
+  H[y+'-10-26'] = 'Nationalfeiertag';
+  H[y+'-11-01'] = 'Allerheiligen';
+  H[y+'-12-08'] = 'Mariä Empfängnis';
+  H[y+'-12-25'] = 'Christtag';
+  H[y+'-12-26'] = 'Stefanitag';
+  holidayCache[y] = H;
+  return H;
+}
+function holidayName(ds){ return holidays(Number(ds.slice(0,4)))[ds] || null; }
+
+/* ================= Rechnen ================= */
+function dailyTarget(){
+  const n = db.settings.workDays.length || 5;
+  return db.settings.weeklyHours / n;
+}
+function isWorkday(ds){ return db.settings.workDays.includes(fromStr(ds).getDay()); }
+function workHours(e){
+  const s = toMin(e.start), en = toMin(e.end);
+  if(s == null || en == null) return 0;
+  let diff = en - s;
+  if(diff < 0) diff += 24*60;           // über Mitternacht
+  diff -= (e.break || 0);
+  return Math.max(0, diff) / 60;
+}
+/* Ein Tag „effektiv“: was zählt er als Ist/Soll */
+function dayInfo(ds){
+  const wd = isWorkday(ds);
+  const soll = wd ? dailyTarget() : 0;
+  const e = db.entries[ds];
+  const hol = holidayName(ds);
+  let type = null, ist = 0;
+  if(e){
+    type = e.type;
+    if(e.type === 'work') ist = workHours(e);
+    else if(e.type === 'off') ist = 0;
+    else ist = soll;                     // Urlaub/Krank zählen als erfüllt
+  } else if(hol){
+    type = 'holiday'; ist = soll;        // Feiertag automatisch erfüllt
+  }
+  return {type, ist, soll, hol, entry:e, workday:wd};
+}
+/* Gesamt-Überstundensaldo bis heute */
+function totalSaldo(){
+  const start = db.settings.startDate || todayStr();
+  let sum = Number(db.settings.startBalance) || 0;
+  const today = todayStr();
+  if(start > today) return sum;
+  const d = fromStr(start);
+  const end = fromStr(today);
+  while(d <= end){
+    const ds = dstr(d);
+    const i = dayInfo(ds);
+    if(i.type !== null || i.workday) sum += i.ist - i.soll;
+    d.setDate(d.getDate()+1);
+  }
+  return sum;
+}
+/* Monats-Statistik */
+function monthStats(y, m){
+  const days = new Date(y, m+1, 0).getDate();
+  const today = todayStr();
+  let ist = 0, soll = 0, saldoToDate = 0, missing = 0;
+  for(let dd = 1; dd <= days; dd++){
+    const ds = y+'-'+pad(m+1)+'-'+pad(dd);
+    const i = dayInfo(ds);
+    ist += i.ist; soll += i.soll;
+    if(ds <= today){
+      saldoToDate += i.ist - i.soll;
+      if(i.workday && i.type === null) missing++;
+    }
+  }
+  return {ist, soll, saldoToDate, missing};
+}
+/* Urlaubstage eines Jahres (nur an Arbeitstagen zählen) */
+function vacationDaysIn(year){
+  const list = [];
+  for(const ds in db.entries){
+    if(db.entries[ds].type === 'vacation' && Number(ds.slice(0,4)) === year && isWorkday(ds)) list.push(ds);
+  }
+  return list.sort();
+}
+
+/* ================= Format ================= */
+function fmtHM(h){
+  const sign = h < 0 ? '−' : '';
+  const abs = Math.abs(h);
+  let H = Math.floor(abs), M = Math.round((abs - H) * 60);
+  if(M === 60){ H++; M = 0; }
+  return sign + H + ':' + pad(M);
+}
+function fmtSaldo(h){ return (h >= 0 ? '+' : '') + fmtHM(h); }
+function fmtDec(h){ return h.toFixed(2).replace('.', ','); }
+function fmtDateAT(ds){ const d = fromStr(ds); return pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear(); }
+
+/* ================= Tabs ================= */
+function showTab(name){
+  document.querySelectorAll('section.tab').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav.tabbar button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  const titles = {heute:'Arbeitszeit', monat:'Monatsübersicht', urlaub:'Urlaub', export:'Bericht & Backup', einstellungen:'Einstellungen'};
+  document.getElementById('header-title').textContent = titles[name];
+  if(name === 'heute') renderHeute();
+  if(name === 'monat') renderMonth();
+  if(name === 'urlaub') renderVacation();
+  if(name === 'export') renderExport();
+  if(name === 'einstellungen') renderSettings();
+  window.scrollTo(0,0);
+}
+
+/* ================= Heute / Eintragen ================= */
+function renderHeute(){
+  document.getElementById('welcome-banner').style.display = db.settings.configured ? 'none' : 'block';
+  document.getElementById('in-date').value = curDate;
+  const e = db.entries[curDate];
+  const hol = holidayName(curDate);
+  const note = document.getElementById('holiday-note');
+  if(hol){
+    note.style.display = 'block';
+    note.textContent = '🎉 ' + fmtDateAT(curDate) + ' ist ' + hol + ' – zählt automatisch, du musst nichts eintragen.';
+  } else note.style.display = 'none';
+
+  if(e){
+    curType = e.type === 'holiday' ? 'work' : e.type;
+    document.getElementById('in-start').value = e.start || '';
+    document.getElementById('in-end').value = e.end || '';
+    document.getElementById('in-break').value = (e.break != null) ? e.break : db.settings.defaultBreak;
+    document.getElementById('btn-delete').style.display = 'block';
+    document.getElementById('btn-save').textContent = 'Änderung speichern';
+  } else {
+    curType = 'work';
+    document.getElementById('in-start').value = '';
+    document.getElementById('in-end').value = '';
+    document.getElementById('in-break').value = db.settings.defaultBreak;
+    document.getElementById('btn-delete').style.display = 'none';
+    document.getElementById('btn-save').textContent = 'Speichern';
+  }
+  paintType();
+  updateCalc();
+  updateStats();
+}
+function paintType(){
+  for(const t of ['work','vacation','sick','off']){
+    const b = document.getElementById('tb-'+t);
+    b.className = 'type-btn' + (curType === t ? ' sel-'+t : '');
+  }
+  document.getElementById('work-fields').style.display = (curType === 'work') ? 'block' : 'none';
+}
+function setType(t){ curType = t; paintType(); }
+function updateCalc(){
+  const e = {start: document.getElementById('in-start').value,
+             end: document.getElementById('in-end').value,
+             break: Number(document.getElementById('in-break').value) || 0};
+  const h = workHours(e);
+  document.getElementById('calc-line').textContent = '= ' + fmtHM(h) + ' Std';
+}
+function updateStats(){
+  const saldo = totalSaldo();
+  const el = document.getElementById('stat-saldo');
+  el.textContent = fmtSaldo(saldo);
+  el.className = 'v ' + (saldo < 0 ? 'neg' : 'pos');
+  const y = new Date().getFullYear();
+  const rest = db.settings.vacationDays + db.settings.carryover - vacationDaysIn(y).length;
+  document.getElementById('stat-vac').textContent = rest + ' Tage';
+  document.getElementById('header-saldo').textContent = 'Saldo ' + fmtSaldo(saldo);
+}
+function saveEntry(){
+  if(curType === 'work'){
+    const start = document.getElementById('in-start').value;
+    const end = document.getElementById('in-end').value;
+    if(!start || !end){ alert('Bitte Kommen- und Gehen-Zeit eintragen.'); return; }
+    db.entries[curDate] = {type:'work', start, end, break: Number(document.getElementById('in-break').value) || 0};
+  } else {
+    db.entries[curDate] = {type: curType};
+  }
+  save();
+  renderHeute();
+  const btn = document.getElementById('btn-save');
+  btn.textContent = '✓ Gespeichert';
+  setTimeout(() => { btn.textContent = 'Änderung speichern'; }, 1200);
+}
+function deleteEntry(){
+  if(!confirm('Eintrag vom ' + fmtDateAT(curDate) + ' wirklich löschen?')) return;
+  delete db.entries[curDate];
+  save();
+  renderHeute();
+}
+
+/* ================= Monat ================= */
+function moveMonth(delta){
+  viewMonth += delta;
+  if(viewMonth < 0){ viewMonth = 11; viewYear--; }
+  if(viewMonth > 11){ viewMonth = 0; viewYear++; }
+  renderMonth();
+}
+function renderMonth(){
+  document.getElementById('month-title').textContent = MONTHS[viewMonth] + ' ' + viewYear;
+  const days = new Date(viewYear, viewMonth+1, 0).getDate();
+  const today = todayStr();
+  let html = '';
+  for(let dd = 1; dd <= days; dd++){
+    const ds = viewYear+'-'+pad(viewMonth+1)+'-'+pad(dd);
+    const d = fromStr(ds);
+    const i = dayInfo(ds);
+    let info = '', hours = '', cls = '';
+    if(i.type === 'work'){
+      info = `<span class="tag tag-work">Arbeit</span> ${i.entry.start}–${i.entry.end}` + (i.entry.break ? ` · ${i.entry.break} min P.` : '');
+      hours = fmtHM(i.ist);
+    } else if(i.type === 'vacation'){ info = '<span class="tag tag-vacation">🌴 Urlaub</span>'; hours = fmtHM(i.ist); }
+    else if(i.type === 'sick'){ info = '<span class="tag tag-sick">🤒 Krank</span>'; hours = fmtHM(i.ist); }
+    else if(i.type === 'holiday'){ info = `<span class="tag tag-holiday">🎉 ${i.hol || 'Feiertag'}</span>`; hours = i.workday ? fmtHM(i.ist) : ''; }
+    else if(i.type === 'off'){ info = '<span class="tag tag-off">Frei/Ausgleich</span>'; hours = '0:00'; }
+    else if(i.workday && ds <= today){ info = '<span class="tag tag-missing">fehlt noch</span>'; hours = ''; }
+    else { cls = 'dim'; }
+    if(ds === today) cls += ' today';
+    html += `<div class="day-row ${cls}" onclick="openDay('${ds}')">
+      <div class="d-date">${WEEKDAYS[d.getDay()]} ${dd}.<small>${pad(viewMonth+1)}/${String(viewYear).slice(2)}</small></div>
+      <div class="d-info">${info}</div>
+      <div class="d-hours">${hours}</div>
+    </div>`;
+  }
+  document.getElementById('month-list').innerHTML = html;
+
+  const st = monthStats(viewYear, viewMonth);
+  const total = totalSaldo();
+  document.getElementById('month-sums').innerHTML = `
+    <div class="sum-grid">
+      <div class="sum-box"><div class="v">${fmtHM(st.ist)}</div><div class="l">Ist-Stunden</div></div>
+      <div class="sum-box"><div class="v">${fmtHM(st.soll)}</div><div class="l">Soll (ganzer Monat)</div></div>
+      <div class="sum-box"><div class="v ${st.saldoToDate < 0 ? 'neg' : 'pos'}">${fmtSaldo(st.saldoToDate)}</div><div class="l">Monat bis heute</div></div>
+      <div class="sum-box"><div class="v ${total < 0 ? 'neg' : 'pos'}">${fmtSaldo(total)}</div><div class="l">Überstunden gesamt</div></div>
+    </div>
+    ${st.missing ? `<p class="hint">⚠️ ${st.missing} Arbeitstag${st.missing > 1 ? 'e' : ''} noch nicht eingetragen – zählt bis dahin als Minus.</p>` : ''}`;
+}
+function openDay(ds){
+  curDate = ds;
+  showTab('heute');
+}
+
+/* ================= Urlaub ================= */
+function moveVacYear(delta){ vacYear += delta; renderVacation(); }
+function renderVacation(){
+  document.getElementById('vac-year-title').textContent = 'Urlaub ' + vacYear;
+  const list = vacationDaysIn(vacYear);
+  const carry = (vacYear === new Date().getFullYear()) ? db.settings.carryover : 0;
+  const rest = db.settings.vacationDays + carry - list.length;
+  const el = document.getElementById('vac-rest');
+  el.textContent = rest;
+  el.style.color = rest < 0 ? 'var(--red)' : 'var(--amber)';
+  document.getElementById('vac-math').innerHTML = `
+    <div><span>Anspruch pro Jahr</span><b>${db.settings.vacationDays} Tage</b></div>
+    ${carry ? `<div><span>+ Übertrag Vorjahr</span><b>${carry} Tage</b></div>` : ''}
+    <div><span>− genommen/geplant ${vacYear}</span><b>${list.length} Tage</b></div>
+    <div><span>Resturlaub</span><b>${rest} Tage</b></div>`;
+  const today = todayStr();
+  document.getElementById('vac-list').innerHTML = list.length
+    ? list.map(ds => `<div class="day-row" onclick="openDay('${ds}')">
+        <div class="d-date">${WEEKDAYS[fromStr(ds).getDay()]}</div>
+        <div class="d-info">${fmtDateAT(ds)}</div>
+        <div class="d-hours">${ds > today ? '<span class="tag tag-vacation">geplant</span>' : '🌴'}</div>
+      </div>`).join('')
+    : '<p class="hint">Noch keine Urlaubstage für ' + vacYear + ' eingetragen.</p>';
+}
+
+/* ================= Export ================= */
+function renderExport(){
+  document.getElementById('export-title').textContent = MONTHS[viewMonth] + ' ' + viewYear;
+}
+function monthRows(y, m){
+  const days = new Date(y, m+1, 0).getDate();
+  const rows = [];
+  for(let dd = 1; dd <= days; dd++){
+    const ds = y+'-'+pad(m+1)+'-'+pad(dd);
+    const i = dayInfo(ds);
+    rows.push({ds, d: fromStr(ds), i});
+  }
+  return rows;
+}
+function downloadCSV(){
+  const st = monthStats(viewYear, viewMonth);
+  let csv = '\ufeffDatum;Tag;Typ;Von;Bis;Pause (min);Ist (Std);Soll (Std)\n';
+  for(const r of monthRows(viewYear, viewMonth)){
+    const e = r.i.entry || {};
+    csv += [fmtDateAT(r.ds), WEEKDAYS[r.d.getDay()],
+            r.i.type ? (r.i.type === 'holiday' ? (r.i.hol || 'Feiertag') : TYPE_LABEL[r.i.type]) : '',
+            e.start || '', e.end || '', e.break != null ? e.break : '',
+            (r.i.type || r.i.soll) ? fmtDec(r.i.ist) : '', r.i.soll ? fmtDec(r.i.soll) : ''
+           ].join(';') + '\n';
+  }
+  csv += `;;;;;Summe;${fmtDec(st.ist)};${fmtDec(st.soll)}\n`;
+  downloadFile(csv, `Arbeitszeit_${viewYear}-${pad(viewMonth+1)}.csv`, 'text/csv;charset=utf-8');
+}
+function printMonth(){
+  const st = monthStats(viewYear, viewMonth);
+  const total = totalSaldo();
+  let rows = '';
+  for(const r of monthRows(viewYear, viewMonth)){
+    const e = r.i.entry || {};
+    const label = r.i.type ? (r.i.type === 'holiday' ? (r.i.hol || 'Feiertag') : TYPE_LABEL[r.i.type]) : '';
+    rows += `<tr>
+      <td>${WEEKDAYS[r.d.getDay()]}, ${fmtDateAT(r.ds)}</td>
+      <td>${label}</td>
+      <td class="num">${e.start || ''}</td><td class="num">${e.end || ''}</td>
+      <td class="num">${e.break != null ? e.break : ''}</td>
+      <td class="num">${(r.i.type || r.i.soll) ? fmtHM(r.i.ist) : ''}</td>
+      <td class="num">${r.i.soll ? fmtHM(r.i.soll) : ''}</td>
+    </tr>`;
+  }
+  document.getElementById('print-area').innerHTML = `
+    <h1>Arbeitszeitnachweis – ${MONTHS[viewMonth]} ${viewYear}</h1>
+    <div class="sub">${db.settings.name ? 'Name: ' + db.settings.name + ' · ' : ''}Wochenstunden: ${fmtDec(db.settings.weeklyHours)}</div>
+    <table>
+      <tr><th>Datum</th><th>Typ</th><th>Von</th><th>Bis</th><th>Pause (min)</th><th>Ist</th><th>Soll</th></tr>
+      ${rows}
+      <tr><th colspan="5">Summe</th><th class="num">${fmtHM(st.ist)}</th><th class="num">${fmtHM(st.soll)}</th></tr>
+    </table>
+    <div class="totals">
+      Monatssaldo: <b>${fmtSaldo(st.ist - st.soll)}</b> Std &nbsp;·&nbsp; Überstunden gesamt (Stand ${fmtDateAT(todayStr())}): <b>${fmtSaldo(total)}</b> Std
+    </div>
+    <div class="sig"><div>Datum, Unterschrift Arbeitnehmer/in</div><div>Datum, Unterschrift Arbeitgeber/in</div></div>`;
+  window.print();
+}
+function exportBackup(){
+  downloadFile(JSON.stringify(db, null, 1), 'arbeitszeit-backup-' + todayStr() + '.json', 'application/json');
+}
+function importBackup(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const d = JSON.parse(reader.result);
+      if(!d || !d.settings || !d.entries) throw new Error('bad');
+      if(!confirm('Backup laden? Die aktuellen Daten auf diesem Handy werden ersetzt.')) return;
+      db = d;
+      save();
+      alert('✓ Backup geladen.');
+      showTab('heute');
+    }catch(e){ alert('Diese Datei ist kein gültiges Arbeitszeit-Backup.'); }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+function downloadFile(content, name, type){
+  const blob = new Blob([content], {type});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+/* ================= Einstellungen ================= */
+function renderSettings(){
+  const s = db.settings;
+  document.getElementById('set-name').value = s.name;
+  document.getElementById('set-weekly').value = s.weeklyHours;
+  document.getElementById('set-break').value = s.defaultBreak;
+  document.getElementById('set-vacdays').value = s.vacationDays;
+  document.getElementById('set-carry').value = s.carryover;
+  document.getElementById('set-startdate').value = s.startDate;
+  document.getElementById('set-startbalance').value = s.startBalance;
+  const order = [1,2,3,4,5,6,0]; // Mo–So
+  document.getElementById('workday-chips').innerHTML = order.map(d =>
+    `<button type="button" class="chip ${s.workDays.includes(d) ? 'on' : ''}" data-day="${d}" onclick="toggleChip(this)">${WEEKDAYS[d]}</button>`
+  ).join('');
+}
+function toggleChip(el){ el.classList.toggle('on'); }
+function saveSettings(){
+  const s = db.settings;
+  s.name = document.getElementById('set-name').value.trim();
+  s.weeklyHours = Number(document.getElementById('set-weekly').value) || 20;
+  s.defaultBreak = Number(document.getElementById('set-break').value) || 0;
+  s.vacationDays = Number(document.getElementById('set-vacdays').value) || 0;
+  s.carryover = Number(document.getElementById('set-carry').value) || 0;
+  s.startDate = document.getElementById('set-startdate').value || s.startDate;
+  s.startBalance = Number(document.getElementById('set-startbalance').value) || 0;
+  const days = [...document.querySelectorAll('#workday-chips .chip.on')].map(c => Number(c.dataset.day));
+  s.workDays = days.length ? days : [1,2,3,4,5];
+  s.configured = true;
+  save();
+  alert('✓ Einstellungen gespeichert.');
+  showTab('heute');
+}
+
+/* ================= Init ================= */
+document.getElementById('in-date').addEventListener('change', ev => {
+  if(ev.target.value){ curDate = ev.target.value; renderHeute(); }
+});
+for(const id of ['in-start','in-end','in-break'])
+  document.getElementById(id).addEventListener('input', updateCalc);
+
+renderHeute();
+if(!db.settings.configured) showTab('einstellungen');
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
