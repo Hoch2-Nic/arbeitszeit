@@ -1,4 +1,4 @@
-const CACHE = 'arbeitszeit-v3';
+const CACHE = 'arbeitszeit-v4';
 const ASSETS = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -17,8 +17,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (e.request.mode === 'navigate') {
+    // no-cache: HTTP-Cache umgehen, damit Updates sofort ankommen
     e.respondWith(
-      fetch(e.request)
+      fetch(e.request, { cache: 'no-cache' })
         .then(r => { caches.open(CACHE).then(c => c.put('./', r.clone())); return r; })
         .catch(() => caches.match('./'))
     );
