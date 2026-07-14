@@ -197,9 +197,6 @@
         <label class="field"><span>Gehen (Nachmittag)</span><input type="time" id="in-end2"></label>
       </div>
       <button type="button" class="btn-link" id="btn-block2" onclick="toggleBlock2()">＋ Nachmittag dazu (z.B. 14:00–18:00)</button>
-      <label class="field"><span>Pause (Minuten)</span>
-        <input type="number" id="in-break" min="0" step="5" inputmode="numeric">
-      </label>
       <div class="calc-line" id="calc-line">= 0:00 Std</div>
     </div>
     <button class="btn btn-primary" id="btn-save" onclick="saveEntry()">Speichern</button>
@@ -273,9 +270,6 @@
     </label>
     <label class="field"><span>Arbeitstage</span>
       <div class="chip-row" id="workday-chips"></div>
-    </label>
-    <label class="field"><span>Standard-Pause (Minuten)</span>
-      <input type="number" id="set-break" min="0" step="5" inputmode="numeric">
     </label>
   </div>
   <div class="card">
@@ -357,7 +351,7 @@ function loadDB(){
   const t = new Date();
   return {
     settings:{
-      name:'', weeklyHours:24, workDays:[1,2,3,4,5], defaultBreak:0,
+      name:'', weeklyHours:24, workDays:[1,2,3,4,5],
       vacationDays:25, vacGrantMonth:9, vacGrantDay:1,
       vacAnchorDate: todayStr(), vacAnchorBalance:7,
       startDate: dstr(new Date(t.getFullYear(), t.getMonth(), 1)), startBalance:0,
@@ -551,14 +545,12 @@ function renderHeute(){
     document.getElementById('in-end').value = e.end || '';
     document.getElementById('in-start2').value = e.start2 || '';
     document.getElementById('in-end2').value = e.end2 || '';
-    document.getElementById('in-break').value = (e.break != null) ? e.break : db.settings.defaultBreak;
     setBlock2(!!e.start2);
     document.getElementById('btn-delete').style.display = 'block';
     document.getElementById('btn-save').textContent = 'Änderung speichern';
   } else {
     curType = 'work';
     for(const id of ['in-start','in-end','in-start2','in-end2']) document.getElementById(id).value = '';
-    document.getElementById('in-break').value = db.settings.defaultBreak;
     setBlock2(false);
     document.getElementById('btn-delete').style.display = 'none';
     document.getElementById('btn-save').textContent = 'Speichern';
@@ -589,8 +581,7 @@ function updateCalc(){
   const e = {start: document.getElementById('in-start').value,
              end: document.getElementById('in-end').value,
              start2: document.getElementById('in-start2').value,
-             end2: document.getElementById('in-end2').value,
-             break: Number(document.getElementById('in-break').value) || 0};
+             end2: document.getElementById('in-end2').value};
   const h = workHours(e);
   document.getElementById('calc-line').textContent = '= ' + fmtHM(h) + ' Std';
 }
@@ -610,7 +601,7 @@ function saveEntry(){
     const start2 = document.getElementById('in-start2').value;
     const end2 = document.getElementById('in-end2').value;
     if((start2 && !end2) || (!start2 && end2)){ alert('Bitte beim Nachmittag Kommen und Gehen eintragen (oder Nachmittag entfernen).'); return; }
-    const entry = {type:'work', start, end, break: Number(document.getElementById('in-break').value) || 0};
+    const entry = {type:'work', start, end};
     if(start2 && end2){ entry.start2 = start2; entry.end2 = end2; }
     db.entries[curDate] = entry;
   } else {
@@ -723,16 +714,16 @@ function monthRows(y, m){
 }
 function downloadCSV(){
   const st = monthStats(viewYear, viewMonth);
-  let csv = '\ufeffDatum;Tag;Typ;Von;Bis;Pause (min);Ist (Std);Soll (Std)\n';
+  let csv = '\ufeffDatum;Tag;Typ;Von;Bis;Ist (Std);Soll (Std)\n';
   for(const r of monthRows(viewYear, viewMonth)){
     const e = r.i.entry || {};
     csv += [fmtDateAT(r.ds), WEEKDAYS[r.d.getDay()],
             r.i.type ? (r.i.type === 'holiday' ? (r.i.hol || 'Feiertag') : TYPE_LABEL[r.i.type]) : '',
-            fmtTimes(e, 'start'), fmtTimes(e, 'end'), e.break != null ? e.break : '',
+            fmtTimes(e, 'start'), fmtTimes(e, 'end'),
             (r.i.type || r.i.soll) ? fmtDec(r.i.ist) : '', r.i.soll ? fmtDec(r.i.soll) : ''
            ].join(';') + '\n';
   }
-  csv += `;;;;;Summe;${fmtDec(st.ist)};${fmtDec(st.soll)}\n`;
+  csv += `;;;;Summe;${fmtDec(st.ist)};${fmtDec(st.soll)}\n`;
   downloadFile(csv, `Arbeitszeit_${viewYear}-${pad(viewMonth+1)}.csv`, 'text/csv;charset=utf-8');
 }
 function printMonth(){
@@ -746,7 +737,6 @@ function printMonth(){
       <td>${WEEKDAYS[r.d.getDay()]}, ${fmtDateAT(r.ds)}</td>
       <td>${label}</td>
       <td class="num">${fmtTimes(e, 'start')}</td><td class="num">${fmtTimes(e, 'end')}</td>
-      <td class="num">${e.break != null ? e.break : ''}</td>
       <td class="num">${(r.i.type || r.i.soll) ? fmtHM(r.i.ist) : ''}</td>
       <td class="num">${r.i.soll ? fmtHM(r.i.soll) : ''}</td>
     </tr>`;
@@ -755,9 +745,9 @@ function printMonth(){
     <h1>Arbeitszeitnachweis – ${MONTHS[viewMonth]} ${viewYear}</h1>
     <div class="sub">${db.settings.name ? 'Name: ' + db.settings.name + ' · ' : ''}Wochenstunden: ${fmtDec(db.settings.weeklyHours)}</div>
     <table>
-      <tr><th>Datum</th><th>Typ</th><th>Von</th><th>Bis</th><th>Pause (min)</th><th>Ist</th><th>Soll</th></tr>
+      <tr><th>Datum</th><th>Typ</th><th>Von</th><th>Bis</th><th>Ist</th><th>Soll</th></tr>
       ${rows}
-      <tr><th colspan="5">Summe</th><th class="num">${fmtHM(st.ist)}</th><th class="num">${fmtHM(st.soll)}</th></tr>
+      <tr><th colspan="4">Summe</th><th class="num">${fmtHM(st.ist)}</th><th class="num">${fmtHM(st.soll)}</th></tr>
     </table>
     <div class="totals">
       Monatssaldo: <b>${fmtSaldo(st.ist - st.soll)}</b> Std &nbsp;·&nbsp; Überstunden gesamt (Stand ${fmtDateAT(todayStr())}): <b>${fmtSaldo(total)}</b> Std
@@ -801,7 +791,6 @@ function renderSettings(){
   const s = db.settings;
   document.getElementById('set-name').value = s.name;
   document.getElementById('set-weekly').value = s.weeklyHours;
-  document.getElementById('set-break').value = s.defaultBreak;
   document.getElementById('set-vacdays').value = s.vacationDays;
   document.getElementById('set-grantdate').value = new Date().getFullYear()+'-'+pad(s.vacGrantMonth)+'-'+pad(s.vacGrantDay);
   document.getElementById('set-vacbalance').value = s.vacAnchorBalance;
@@ -817,8 +806,7 @@ function toggleChip(el){ el.classList.toggle('on'); }
 function saveSettings(){
   const s = db.settings;
   s.name = document.getElementById('set-name').value.trim();
-  s.weeklyHours = Number(document.getElementById('set-weekly').value) || 20;
-  s.defaultBreak = Number(document.getElementById('set-break').value) || 0;
+  s.weeklyHours = Number(document.getElementById('set-weekly').value) || 24;
   s.vacationDays = Number(document.getElementById('set-vacdays').value) || 0;
   const grant = document.getElementById('set-grantdate').value;   // Jahr wird ignoriert
   if(grant){ s.vacGrantMonth = Number(grant.slice(5,7)); s.vacGrantDay = Number(grant.slice(8,10)); }
@@ -838,7 +826,7 @@ function saveSettings(){
 document.getElementById('in-date').addEventListener('change', ev => {
   if(ev.target.value){ curDate = ev.target.value; renderHeute(); }
 });
-for(const id of ['in-start','in-end','in-start2','in-end2','in-break'])
+for(const id of ['in-start','in-end','in-start2','in-end2'])
   document.getElementById(id).addEventListener('input', updateCalc);
 
 renderHeute();
