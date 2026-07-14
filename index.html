@@ -76,6 +76,10 @@
     background:var(--teal-light); border-radius:12px; padding:12px; margin:4px 0 16px;
   }
   .hint{font-size:.9rem; color:var(--text-soft); margin-top:8px}
+  .btn-link{
+    display:block; width:100%; border:none; background:none; color:var(--teal-dark);
+    font-size:1rem; font-weight:700; padding:6px 0 16px; text-align:left; cursor:pointer; font-family:inherit;
+  }
   .banner{
     background:var(--amber-light); border:1.5px solid var(--amber); border-radius:14px;
     padding:14px 16px; margin-bottom:14px; font-size:1rem; color:#92400e; font-weight:600;
@@ -188,6 +192,11 @@
         <label class="field"><span>Kommen</span><input type="time" id="in-start"></label>
         <label class="field"><span>Gehen</span><input type="time" id="in-end"></label>
       </div>
+      <div class="row2" id="block2" style="display:none">
+        <label class="field"><span>Kommen (Nachmittag)</span><input type="time" id="in-start2"></label>
+        <label class="field"><span>Gehen (Nachmittag)</span><input type="time" id="in-end2"></label>
+      </div>
+      <button type="button" class="btn-link" id="btn-block2" onclick="toggleBlock2()">＋ Nachmittag dazu (z.B. 14:00–18:00)</button>
       <label class="field"><span>Pause (Minuten)</span>
         <input type="number" id="in-break" min="0" step="5" inputmode="numeric">
       </label>
@@ -200,7 +209,7 @@
   <div class="card">
     <div class="sum-grid">
       <div class="sum-box"><div class="v" id="stat-saldo">–</div><div class="l">Überstunden gesamt</div></div>
-      <div class="sum-box"><div class="v" id="stat-vac">–</div><div class="l">Resturlaub heuer</div></div>
+      <div class="sum-box"><div class="v" id="stat-vac">–</div><div class="l">Resturlaub</div></div>
     </div>
   </div>
 </section>
@@ -218,19 +227,15 @@
 
 <!-- ============ URLAUB ============ -->
 <section class="tab" id="tab-urlaub">
-  <div class="month-nav">
-    <button onclick="moveVacYear(-1)" aria-label="Voriges Jahr">‹</button>
-    <div class="month-title" id="vac-year-title"></div>
-    <button onclick="moveVacYear(1)" aria-label="Nächstes Jahr">›</button>
-  </div>
   <div class="card">
     <div class="big-stat"><div class="n" id="vac-rest">–</div><div class="t">Tage Resturlaub</div></div>
     <div class="vac-math" id="vac-math"></div>
+    <p class="hint" id="vac-next"></p>
   </div>
   <div class="card">
     <h2>Eingetragene Urlaubstage</h2>
     <div id="vac-list"></div>
-    <p class="hint">Urlaub einträgst du unter „Heute“: Datum wählen → 🌴 Urlaub → Speichern. Auch für Tage in der Zukunft (Urlaubsplanung).</p>
+    <p class="hint">Urlaub einträgst du unter „Eintragen“: Datum wählen → 🌴 Urlaub → Speichern. Auch für Tage in der Zukunft (Urlaubsplanung).</p>
   </div>
 </section>
 
@@ -279,10 +284,19 @@
       <label class="field"><span>Urlaubstage pro Jahr</span>
         <input type="number" id="set-vacdays" min="0" step="1" inputmode="numeric">
       </label>
-      <label class="field"><span>Übertrag Vorjahr</span>
-        <input type="number" id="set-carry" step="1" inputmode="numeric">
+      <label class="field"><span>Neue Tage jedes Jahr am</span>
+        <input type="date" id="set-grantdate">
       </label>
     </div>
+    <div class="row2">
+      <label class="field"><span>Resturlaub-Stand (Tage)</span>
+        <input type="number" id="set-vacbalance" step="1" inputmode="numeric">
+      </label>
+      <label class="field"><span>Stand vom (Datum)</span>
+        <input type="date" id="set-vacanchor">
+      </label>
+    </div>
+    <p class="hint">Stand einmal eintragen (z.B. „7 Tage am 15.07.2026“) – ab dann rechnet die App selbst: minus eingetragene Urlaubstage, plus neue Tage jedes Jahr am Stichtag.</p>
   </div>
   <div class="card">
     <h2>Überstunden-Zählung</h2>
@@ -321,19 +335,31 @@ let db = loadDB();
 let curDate = todayStr();               // im Eintragen-Tab gewähltes Datum
 let curType = 'work';
 let viewYear, viewMonth;                // Monatsansicht (Monat 0-basiert)
-let vacYear = new Date().getFullYear(); // Urlaubsansicht
 { const t = new Date(); viewYear = t.getFullYear(); viewMonth = t.getMonth(); }
 
 function loadDB(){
   try{
     const raw = localStorage.getItem(KEY);
-    if(raw){ const d = JSON.parse(raw); if(d && d.settings && d.entries) return d; }
+    if(raw){
+      const d = JSON.parse(raw);
+      if(d && d.settings && d.entries){
+        // Migration: altes Urlaubsmodell (Anspruch+Übertrag) -> Stichtags-Modell
+        if(d.settings.vacAnchorDate === undefined){
+          d.settings.vacGrantMonth = 9; d.settings.vacGrantDay = 1;
+          d.settings.vacAnchorDate = todayStr();
+          d.settings.vacAnchorBalance = 7;
+          delete d.settings.carryover;
+        }
+        return d;
+      }
+    }
   }catch(e){}
   const t = new Date();
   return {
     settings:{
-      name:'', weeklyHours:20, workDays:[1,2,3,4,5], defaultBreak:30,
-      vacationDays:25, carryover:0,
+      name:'', weeklyHours:24, workDays:[1,2,3,4,5], defaultBreak:0,
+      vacationDays:25, vacGrantMonth:9, vacGrantDay:1,
+      vacAnchorDate: todayStr(), vacAnchorBalance:7,
       startDate: dstr(new Date(t.getFullYear(), t.getMonth(), 1)), startBalance:0,
       configured:false
     },
@@ -388,12 +414,21 @@ function dailyTarget(){
 }
 function isWorkday(ds){ return db.settings.workDays.includes(fromStr(ds).getDay()); }
 function workHours(e){
-  const s = toMin(e.start), en = toMin(e.end);
-  if(s == null || en == null) return 0;
-  let diff = en - s;
-  if(diff < 0) diff += 24*60;           // über Mitternacht
-  diff -= (e.break || 0);
-  return Math.max(0, diff) / 60;
+  const seg = (a, b) => {
+    const s = toMin(a), t = toMin(b);
+    if(s == null || t == null) return 0;
+    let diff = t - s;
+    if(diff < 0) diff += 24*60;         // über Mitternacht
+    return diff;
+  };
+  let mins = seg(e.start, e.end) + seg(e.start2, e.end2);
+  if(mins === 0) return 0;
+  mins -= (e.break || 0);
+  return Math.max(0, mins) / 60;
+}
+function fmtTimes(e, which){            // "08:00 + 14:00" bei geteiltem Tag
+  const a = e[which] || '';
+  return e[which+'2'] ? a + ' + ' + e[which+'2'] : a;
 }
 /* Ein Tag „effektiv“: was zählt er als Ist/Soll */
 function dayInfo(ds){
@@ -444,13 +479,30 @@ function monthStats(y, m){
   }
   return {ist, soll, saldoToDate, missing};
 }
-/* Urlaubstage eines Jahres (nur an Arbeitstagen zählen) */
-function vacationDaysIn(year){
-  const list = [];
-  for(const ds in db.entries){
-    if(db.entries[ds].type === 'vacation' && Number(ds.slice(0,4)) === year && isWorkday(ds)) list.push(ds);
+/* Urlaub: Stichtags-Modell. Stand X Tage am Datum A; danach minus eingetragene
+   Urlaubstage, plus Jahresanspruch an jedem Stichtag (z.B. 1.9.). */
+function grantStr(y){ return y+'-'+pad(db.settings.vacGrantMonth)+'-'+pad(db.settings.vacGrantDay); }
+function nextGrantAfter(ds){
+  const y = Number(ds.slice(0,4));
+  return grantStr(y) > ds ? grantStr(y) : grantStr(y+1);
+}
+function vacationInfo(){
+  const s = db.settings, today = todayStr();
+  const anchor = s.vacAnchorDate || today;
+  const grants = [];                     // Stichtage zwischen Stand-Datum und heute
+  for(let y = Number(anchor.slice(0,4)); y <= Number(today.slice(0,4)); y++){
+    const g = grantStr(y);
+    if(g > anchor && g <= today) grants.push(g);
   }
-  return list.sort();
+  const nextGrant = nextGrantAfter(today);
+  const yearEnd = dstr(new Date(fromStr(nextGrant).getTime() - 86400000)); // Tag vor nächstem Stichtag
+  const taken = [], later = [];
+  for(const ds of Object.keys(db.entries).sort()){
+    if(db.entries[ds].type !== 'vacation' || ds <= anchor || !isWorkday(ds)) continue;
+    if(ds <= yearEnd) taken.push(ds); else later.push(ds);
+  }
+  const rest = s.vacAnchorBalance + grants.length * s.vacationDays - taken.length;
+  return {rest, grants, taken, later, anchor, yearEnd, nextGrant};
 }
 
 /* ================= Format ================= */
@@ -497,14 +549,17 @@ function renderHeute(){
     curType = e.type === 'holiday' ? 'work' : e.type;
     document.getElementById('in-start').value = e.start || '';
     document.getElementById('in-end').value = e.end || '';
+    document.getElementById('in-start2').value = e.start2 || '';
+    document.getElementById('in-end2').value = e.end2 || '';
     document.getElementById('in-break').value = (e.break != null) ? e.break : db.settings.defaultBreak;
+    setBlock2(!!e.start2);
     document.getElementById('btn-delete').style.display = 'block';
     document.getElementById('btn-save').textContent = 'Änderung speichern';
   } else {
     curType = 'work';
-    document.getElementById('in-start').value = '';
-    document.getElementById('in-end').value = '';
+    for(const id of ['in-start','in-end','in-start2','in-end2']) document.getElementById(id).value = '';
     document.getElementById('in-break').value = db.settings.defaultBreak;
+    setBlock2(false);
     document.getElementById('btn-delete').style.display = 'none';
     document.getElementById('btn-save').textContent = 'Speichern';
   }
@@ -520,9 +575,21 @@ function paintType(){
   document.getElementById('work-fields').style.display = (curType === 'work') ? 'block' : 'none';
 }
 function setType(t){ curType = t; paintType(); }
+function setBlock2(on){
+  document.getElementById('block2').style.display = on ? 'grid' : 'none';
+  document.getElementById('btn-block2').textContent = on ? '× Nachmittag entfernen' : '＋ Nachmittag dazu (z.B. 14:00–18:00)';
+}
+function toggleBlock2(){
+  const on = document.getElementById('block2').style.display === 'none';
+  if(!on){ document.getElementById('in-start2').value = ''; document.getElementById('in-end2').value = ''; }
+  setBlock2(on);
+  updateCalc();
+}
 function updateCalc(){
   const e = {start: document.getElementById('in-start').value,
              end: document.getElementById('in-end').value,
+             start2: document.getElementById('in-start2').value,
+             end2: document.getElementById('in-end2').value,
              break: Number(document.getElementById('in-break').value) || 0};
   const h = workHours(e);
   document.getElementById('calc-line').textContent = '= ' + fmtHM(h) + ' Std';
@@ -532,9 +599,7 @@ function updateStats(){
   const el = document.getElementById('stat-saldo');
   el.textContent = fmtSaldo(saldo);
   el.className = 'v ' + (saldo < 0 ? 'neg' : 'pos');
-  const y = new Date().getFullYear();
-  const rest = db.settings.vacationDays + db.settings.carryover - vacationDaysIn(y).length;
-  document.getElementById('stat-vac').textContent = rest + ' Tage';
+  document.getElementById('stat-vac').textContent = vacationInfo().rest + ' Tage';
   document.getElementById('header-saldo').textContent = 'Saldo ' + fmtSaldo(saldo);
 }
 function saveEntry(){
@@ -542,7 +607,12 @@ function saveEntry(){
     const start = document.getElementById('in-start').value;
     const end = document.getElementById('in-end').value;
     if(!start || !end){ alert('Bitte Kommen- und Gehen-Zeit eintragen.'); return; }
-    db.entries[curDate] = {type:'work', start, end, break: Number(document.getElementById('in-break').value) || 0};
+    const start2 = document.getElementById('in-start2').value;
+    const end2 = document.getElementById('in-end2').value;
+    if((start2 && !end2) || (!start2 && end2)){ alert('Bitte beim Nachmittag Kommen und Gehen eintragen (oder Nachmittag entfernen).'); return; }
+    const entry = {type:'work', start, end, break: Number(document.getElementById('in-break').value) || 0};
+    if(start2 && end2){ entry.start2 = start2; entry.end2 = end2; }
+    db.entries[curDate] = entry;
   } else {
     db.entries[curDate] = {type: curType};
   }
@@ -577,7 +647,10 @@ function renderMonth(){
     const i = dayInfo(ds);
     let info = '', hours = '', cls = '';
     if(i.type === 'work'){
-      info = `<span class="tag tag-work">Arbeit</span> ${i.entry.start}–${i.entry.end}` + (i.entry.break ? ` · ${i.entry.break} min P.` : '');
+      const times = i.entry.start2
+        ? `${i.entry.start}–${i.entry.end} + ${i.entry.start2}–${i.entry.end2}`
+        : `${i.entry.start}–${i.entry.end}`;
+      info = `<span class="tag tag-work">Arbeit</span> ${times}` + (i.entry.break ? ` · ${i.entry.break} min P.` : '');
       hours = fmtHM(i.ist);
     } else if(i.type === 'vacation'){ info = '<span class="tag tag-vacation">🌴 Urlaub</span>'; hours = fmtHM(i.ist); }
     else if(i.type === 'sick'){ info = '<span class="tag tag-sick">🤒 Krank</span>'; hours = fmtHM(i.ist); }
@@ -611,28 +684,27 @@ function openDay(ds){
 }
 
 /* ================= Urlaub ================= */
-function moveVacYear(delta){ vacYear += delta; renderVacation(); }
 function renderVacation(){
-  document.getElementById('vac-year-title').textContent = 'Urlaub ' + vacYear;
-  const list = vacationDaysIn(vacYear);
-  const carry = (vacYear === new Date().getFullYear()) ? db.settings.carryover : 0;
-  const rest = db.settings.vacationDays + carry - list.length;
+  const v = vacationInfo();
   const el = document.getElementById('vac-rest');
-  el.textContent = rest;
-  el.style.color = rest < 0 ? 'var(--red)' : 'var(--amber)';
+  el.textContent = v.rest;
+  el.style.color = v.rest < 0 ? 'var(--red)' : 'var(--amber)';
   document.getElementById('vac-math').innerHTML = `
-    <div><span>Anspruch pro Jahr</span><b>${db.settings.vacationDays} Tage</b></div>
-    ${carry ? `<div><span>+ Übertrag Vorjahr</span><b>${carry} Tage</b></div>` : ''}
-    <div><span>− genommen/geplant ${vacYear}</span><b>${list.length} Tage</b></div>
-    <div><span>Resturlaub</span><b>${rest} Tage</b></div>`;
+    <div><span>Stand am ${fmtDateAT(v.anchor)}</span><b>${db.settings.vacAnchorBalance} Tage</b></div>
+    ${v.grants.map(g => `<div><span>+ neue Tage am ${fmtDateAT(g)}</span><b>${db.settings.vacationDays} Tage</b></div>`).join('')}
+    <div><span>− genommen/geplant (bis ${fmtDateAT(v.yearEnd)})</span><b>${v.taken.length} Tage</b></div>
+    <div><span>Resturlaub</span><b>${v.rest} Tage</b></div>`;
+  document.getElementById('vac-next').textContent =
+    '📅 Am ' + fmtDateAT(v.nextGrant) + ' kommen automatisch ' + db.settings.vacationDays + ' neue Urlaubstage dazu.';
   const today = todayStr();
-  document.getElementById('vac-list').innerHTML = list.length
-    ? list.map(ds => `<div class="day-row" onclick="openDay('${ds}')">
+  const all = v.taken.concat(v.later);
+  document.getElementById('vac-list').innerHTML = all.length
+    ? all.map(ds => `<div class="day-row" onclick="openDay('${ds}')">
         <div class="d-date">${WEEKDAYS[fromStr(ds).getDay()]}</div>
         <div class="d-info">${fmtDateAT(ds)}</div>
-        <div class="d-hours">${ds > today ? '<span class="tag tag-vacation">geplant</span>' : '🌴'}</div>
+        <div class="d-hours">${ds > v.yearEnd ? '<span class="tag tag-off">nächstes Urlaubsjahr</span>' : (ds > today ? '<span class="tag tag-vacation">geplant</span>' : '🌴')}</div>
       </div>`).join('')
-    : '<p class="hint">Noch keine Urlaubstage für ' + vacYear + ' eingetragen.</p>';
+    : '<p class="hint">Noch keine Urlaubstage eingetragen.</p>';
 }
 
 /* ================= Export ================= */
@@ -656,7 +728,7 @@ function downloadCSV(){
     const e = r.i.entry || {};
     csv += [fmtDateAT(r.ds), WEEKDAYS[r.d.getDay()],
             r.i.type ? (r.i.type === 'holiday' ? (r.i.hol || 'Feiertag') : TYPE_LABEL[r.i.type]) : '',
-            e.start || '', e.end || '', e.break != null ? e.break : '',
+            fmtTimes(e, 'start'), fmtTimes(e, 'end'), e.break != null ? e.break : '',
             (r.i.type || r.i.soll) ? fmtDec(r.i.ist) : '', r.i.soll ? fmtDec(r.i.soll) : ''
            ].join(';') + '\n';
   }
@@ -673,7 +745,7 @@ function printMonth(){
     rows += `<tr>
       <td>${WEEKDAYS[r.d.getDay()]}, ${fmtDateAT(r.ds)}</td>
       <td>${label}</td>
-      <td class="num">${e.start || ''}</td><td class="num">${e.end || ''}</td>
+      <td class="num">${fmtTimes(e, 'start')}</td><td class="num">${fmtTimes(e, 'end')}</td>
       <td class="num">${e.break != null ? e.break : ''}</td>
       <td class="num">${(r.i.type || r.i.soll) ? fmtHM(r.i.ist) : ''}</td>
       <td class="num">${r.i.soll ? fmtHM(r.i.soll) : ''}</td>
@@ -731,7 +803,9 @@ function renderSettings(){
   document.getElementById('set-weekly').value = s.weeklyHours;
   document.getElementById('set-break').value = s.defaultBreak;
   document.getElementById('set-vacdays').value = s.vacationDays;
-  document.getElementById('set-carry').value = s.carryover;
+  document.getElementById('set-grantdate').value = new Date().getFullYear()+'-'+pad(s.vacGrantMonth)+'-'+pad(s.vacGrantDay);
+  document.getElementById('set-vacbalance').value = s.vacAnchorBalance;
+  document.getElementById('set-vacanchor').value = s.vacAnchorDate;
   document.getElementById('set-startdate').value = s.startDate;
   document.getElementById('set-startbalance').value = s.startBalance;
   const order = [1,2,3,4,5,6,0]; // Mo–So
@@ -746,7 +820,10 @@ function saveSettings(){
   s.weeklyHours = Number(document.getElementById('set-weekly').value) || 20;
   s.defaultBreak = Number(document.getElementById('set-break').value) || 0;
   s.vacationDays = Number(document.getElementById('set-vacdays').value) || 0;
-  s.carryover = Number(document.getElementById('set-carry').value) || 0;
+  const grant = document.getElementById('set-grantdate').value;   // Jahr wird ignoriert
+  if(grant){ s.vacGrantMonth = Number(grant.slice(5,7)); s.vacGrantDay = Number(grant.slice(8,10)); }
+  s.vacAnchorBalance = Number(document.getElementById('set-vacbalance').value) || 0;
+  s.vacAnchorDate = document.getElementById('set-vacanchor').value || s.vacAnchorDate;
   s.startDate = document.getElementById('set-startdate').value || s.startDate;
   s.startBalance = Number(document.getElementById('set-startbalance').value) || 0;
   const days = [...document.querySelectorAll('#workday-chips .chip.on')].map(c => Number(c.dataset.day));
@@ -761,7 +838,7 @@ function saveSettings(){
 document.getElementById('in-date').addEventListener('change', ev => {
   if(ev.target.value){ curDate = ev.target.value; renderHeute(); }
 });
-for(const id of ['in-start','in-end','in-break'])
+for(const id of ['in-start','in-end','in-start2','in-end2','in-break'])
   document.getElementById(id).addEventListener('input', updateCalc);
 
 renderHeute();
