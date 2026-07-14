@@ -714,7 +714,7 @@ function monthRows(y, m){
 }
 function downloadCSV(){
   const st = monthStats(viewYear, viewMonth);
-  let csv = '\ufeffDatum;Tag;Typ;Von;Bis;Ist (Std);Soll (Std)\n';
+  let csv = '\ufeffDatum;Tag;Typ;Von;Bis;Ist (Std);Soll (Std);Differenz (Std)\n';
   const today = todayStr();
   for(const r of monthRows(viewYear, viewMonth)){
     const e = r.i.entry || {};
@@ -723,10 +723,11 @@ function downloadCSV(){
     csv += [fmtDateAT(r.ds), WEEKDAYS[r.d.getDay()],
             r.i.type ? (r.i.type === 'holiday' ? (r.i.hol || 'Feiertag') : TYPE_LABEL[r.i.type]) : '',
             fmtTimes(e, 'start'), fmtTimes(e, 'end'),
-            showIst ? fmtDec(r.i.ist) : '', r.i.soll ? fmtDec(r.i.soll) : ''
+            showIst ? fmtDec(r.i.ist) : '', r.i.soll ? fmtDec(r.i.soll) : '',
+            showIst ? fmtDec(r.i.ist - r.i.soll) : ''
            ].join(';') + '\n';
   }
-  csv += `;;;;Summe;${fmtDec(st.ist)};${fmtDec(st.soll)}\n`;
+  csv += `;;;;Summe;${fmtDec(st.ist)};${fmtDec(st.soll)};${fmtDec(st.ist - st.soll)}\n`;
   downloadFile(csv, `Arbeitszeit_${viewYear}-${pad(viewMonth+1)}.csv`, 'text/csv;charset=utf-8');
 }
 function printMonth(){
@@ -744,15 +745,16 @@ function printMonth(){
       <td class="num">${fmtTimes(e, 'start')}</td><td class="num">${fmtTimes(e, 'end')}</td>
       <td class="num">${showIst ? fmtHM(r.i.ist) : ''}</td>
       <td class="num">${r.i.soll ? fmtHM(r.i.soll) : ''}</td>
+      <td class="num">${showIst ? fmtSaldo(r.i.ist - r.i.soll) : ''}</td>
     </tr>`;
   }
   document.getElementById('print-area').innerHTML = `
     <h1>Arbeitszeitnachweis – ${MONTHS[viewMonth]} ${viewYear}</h1>
     <div class="sub">${db.settings.name ? 'Name: ' + db.settings.name + ' · ' : ''}Wochenstunden: ${fmtDec(db.settings.weeklyHours)}</div>
     <table>
-      <tr><th>Datum</th><th>Typ</th><th>Von</th><th>Bis</th><th>Ist</th><th>Soll</th></tr>
+      <tr><th>Datum</th><th>Typ</th><th>Von</th><th>Bis</th><th>Ist</th><th>Soll</th><th>Differenz</th></tr>
       ${rows}
-      <tr><th colspan="4">Summe</th><th class="num">${fmtHM(st.ist)}</th><th class="num">${fmtHM(st.soll)}</th></tr>
+      <tr><th colspan="4">Summe</th><th class="num">${fmtHM(st.ist)}</th><th class="num">${fmtHM(st.soll)}</th><th class="num">${fmtSaldo(st.ist - st.soll)}</th></tr>
     </table>
     <div class="totals">
       Monatssaldo (bis ${fmtDateAT(today)}): <b>${fmtSaldo(st.saldoToDate)}</b> Std &nbsp;·&nbsp; Überstunden gesamt: <b>${fmtSaldo(total)}</b> Std
